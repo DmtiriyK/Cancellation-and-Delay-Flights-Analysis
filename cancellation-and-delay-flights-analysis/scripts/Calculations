@@ -1,0 +1,205 @@
+Parameters
+----------
+
+pDelayMetric ([Parameter 1])
+    "Departure"
+
+pRightView ([Parameter 2])
+    "Timeline"
+
+pAirportSide ([Parameter 3])
+    "Origin"
+
+federated.1hv3qde1ofenso1ep36o11guu0ek
+--------------------------------------
+
+Date ([Calculation_1346013394278907904])
+    MAKEDATE([Year], [Month], [DAY])
+
+ArrDelay (min) ([Calculation_1501669056574693376])
+    INT([Arrival Delay])
+
+DepDelay (min) ([Calculation_1501669056574758913])
+    INT([Departure Delay])
+
+IsCancelled ([Calculation_1501669056574906370])
+    IIF([Cancelled]=1,1,0)
+
+IsDelayed ([Calculation_1501669056575004675])
+    IIF([Calculation_1501669056574906370]=1,0,
+        IIF(ZN([Calculation_1501669056574693376])>0 OR ZN([Calculation_1501669056574758913])>0,1,0))
+
+IsOnTime ([Calculation_1501669056575143940])
+    IIF([Calculation_1501669056574906370]=1,0, IIF([Calculation_1501669056575004675]=1,0,1))
+
+Flights ([Calculation_1501669056575827974])
+    COUNTD([Calculation_1501669056690110485])
+
+Status (bucket) ([Calculation_1501669056576294919])
+    IF [Calculation_1501669056574906370]=1 THEN 'Cancelled'
+    ELSEIF [Calculation_1501669056575004675]=1 THEN 'Delayed'
+    ELSE 'On-time' END
+
+Delay (Selected, min) ([Calculation_1501669056580341768])
+    IF [Parameters].[Parameter 1]='Arrival' THEN [Calculation_1501669056574693376] ELSE [Calculation_1501669056574758913] END
+
+Avg Delay (min) ([Calculation_1501669056580530185])
+    AVG(
+        IIF([Parameters].[Parameter 1]='Arrival',
+            IIF([Calculation_1501669056574693376]>0,[Calculation_1501669056574693376],NULL),
+            IIF([Calculation_1501669056574758913]>0,[Calculation_1501669056574758913],NULL)
+        )
+    )
+
+% Delayed ([Calculation_1501669056582430731])
+    SUM([Calculation_1501669056575004675]) / [Calculation_1501669056575827974]
+
+% Cancelled ([Calculation_1501669056582545420])
+    SUM([Calculation_1501669056574906370]) / [Calculation_1501669056575827974]
+
+Month (Date) ([Calculation_1501669056583946254])
+    DATETRUNC('month', DATE([Calculation_1346013394278907904]))
+
+Flights per Month ([Calculation_1501669056584040463])
+    COUNT([Flight Number])
+
+% Problem (Delayed or Cancelled) ([Calculation_1501669056584151056])
+    (SUM([Calculation_1501669056575004675]) + SUM([Calculation_1501669056574906370])) / COUNT([Flight Number])
+
+Route ([Calculation_1501669056584241169])
+    [Origin Airport] + ' → ' + [Destination Airport]
+
+% Delayed by Dim ([Calculation_1501669056584376338])
+    SUM([Calculation_1501669056575004675]) / COUNT([Flight Number])
+
+% Cancelled by Dim ([Calculation_1501669056584466451])
+    SUM([Calculation_1501669056574906370]) / COUNT([Flight Number])
+
+% On-time by Dim ([Calculation_1501669056584560660])
+    SUM([Calculation_1501669056575143940]) / COUNT([Flight Number])
+
+Flight ID ([Calculation_1501669056690110485])
+    STR([Airline]) + '|' + STR([Flight Number]) + '|'
+    + STR(DATE([Calculation_1346013394278907904])) + '|' + [Origin Airport] + '|' + [Destination Airport]
+
+Flights by Airline ([Calculation_1501669056712376346])
+    COUNT([Flight Number])
+
+% Delayed by Airline ([Calculation_1501669056712466459])
+    { FIXED [Airline] :
+        SUM( IIF([Cancelled]=1,0,
+                 IIF(INT([Arrival Delay])>0 OR INT([Departure Delay])>0,1,0)) )
+    }
+    / { FIXED [Airline] : COUNT([Flight Number]) }
+
+IsDelayed 15m ([Calculation_1501669056717160476])
+    IIF([Cancelled]=1,0,
+        IIF(INT([Arrival Delay])>=15 OR INT([Departure Delay])>=15,1,0))
+
+% Delayed 15m by Airline ([Calculation_1501669056717262877])
+    SUM([Calculation_1501669056717160476]) / COUNT([Flight Number])
+
+Avg Delay 15m ([Calculation_1501669056717393950])
+    AVG(
+        IIF([Parameters].[Parameter 1]='Arrival',
+            IIF(INT([Arrival Delay])>=15, INT([Arrival Delay]), NULL),
+            IIF(INT([Departure Delay])>=15, INT([Departure Delay]), NULL)
+        )
+    )
+
+% Pos (inside) ([Calculation_1509550356877598720])
+    0.03 * [Calculation_1501669056712376346]
+
+% Label ([Calculation_1509550356877672449])
+    STR(ROUND([Calculation_1501669056717262877] * 100, 0)) + "%"
+
+Show % ([Calculation_1509550356877762562])
+    [Calculation_1501669056712376346] >= 0.12 * WINDOW_MAX([Calculation_1501669056712376346])
+
+% Label (smart) ([Calculation_1509550356877864963])
+    IF [Calculation_1509550356877762562] THEN STR(ROUND([Calculation_1501669056717262877] * 100, 0)) + "%" END
+
+% Delayed 15m by Origin ([Calculation_1882786175389724672])
+    SUM( IIF([Cancelled]=1,0,
+             IIF(INT([Arrival Delay])>=15 OR INT([Departure Delay])>=15,1,0)) )
+    / COUNT([Flight Number])
+
+% Problem (Delayed≥15m or Cancelled) ([Calculation_1882786175450505217])
+    ( SUM([Calculation_1501669056717160476]) + SUM([Cancelled]) ) / COUNT([Flight Number])
+
+Delay Minutes Total ([Calculation_1882786175462572034])
+    ZN([Airline Delay]) + ZN([Weather Delay]) + ZN([Security Delay])
+    + ZN([Late Aircraft Delay]) + ZN([Air System Delay])
+
+Share - Airline ([Calculation_1882786175462637571])
+    SUM([Airline Delay]) / SUM([Calculation_1882786175462572034])
+
+Share - Weather ([Calculation_1882786175462670340])
+    SUM([Weather Delay]) / SUM([Calculation_1882786175462572034])
+
+Share - Security ([Calculation_1882786175462789125])
+    SUM([Security Delay]) / SUM([Calculation_1882786175462572034])
+
+Share - Late Aircraft ([Calculation_1882786175462850566])
+    SUM([Late Aircraft Delay]) / SUM([Calculation_1882786175462572034])
+
+Share - Air System ([Calculation_1882786175462903815])
+    SUM([Air System Delay]) / SUM([Calculation_1882786175462572034])
+
+One row ([Calculation_1882786175466082315])
+    'All flights'
+
+Show Timeline ([Calculation_1882786175479996430])
+    [Parameters].[Parameter 2]='Timeline'
+
+Show Map ([Calculation_1882786175480078351])
+    [Parameters].[Parameter 2]='Map'
+
+Airport (Selected) ([Calculation_1882786175480172560])
+    IF [Parameters].[Parameter 3]='Origin' THEN [Origin Airport] ELSE [Destination Airport] END
+
+Latitude (Selected) ([Calculation_1882786175480266769])
+    IF [Parameters].[Parameter 3]='Origin'
+    THEN [LATITUDE (airports.csv)]
+    ELSE [LATITUDE] END
+
+Longitude (Selected) ([Calculation_1882786175481008146])
+    IF [Parameters].[Parameter 3]='Origin'
+    THEN [LONGITUDE (airports.csv)]
+    ELSE [LONGITUDE] END
+
+Flights by Airport (LOD) ([Calculation_1882786175482257427])
+    { FIXED [Calculation_1882786175480172560] : COUNT([Flight Number]) }
+
+Delay+ ([Calculation_739716295338328064])
+    IF [Calculation_1501669056580341768] > 0 THEN [Calculation_1501669056580341768] END
+
+DepHour ([Calculation_739716295339917313])
+    INT([Scheduled Departure] / 300)
+
+DOW Name ([Calculation_739716295340027906])
+    CASE [Day Of Week]
+     WHEN 1 THEN "Mon" WHEN 2 THEN "Tue" WHEN 3 THEN "Wed"
+     WHEN 4 THEN "Thu" WHEN 5 THEN "Fri" WHEN 6 THEN "Sat" ELSE "Sun" END
+
+DepHour2 ([Calculation_739716295398416388])
+    INT([Scheduled Departure] / 100)
+
+Delay Class ([Calculation_911978980892692481])
+    IF [Cancelled]=1 THEN "Cancelled"
+    ELSEIF [Calculation_1501669056580341768] < 1 THEN "On-time"
+    ELSEIF [Calculation_1501669056580341768] < 15 THEN "0-14m"
+    ELSEIF [Calculation_1501669056580341768] < 30 THEN "15-29m"
+    ELSEIF [Calculation_1501669056580341768] < 60 THEN "30-59m"
+    ELSEIF [Calculation_1501669056580341768] < 120 THEN "60-119m"
+    ELSE "120m+"
+    END
+
+Delay Class Order ([Calculation_911978980892864514])
+    IF [Cancelled]=1 THEN 7
+    ELSEIF [Calculation_1501669056580341768] < 1 THEN 1
+    ELSEIF [Calculation_1501669056580341768] < 15 THEN 2
+    ELSEIF [Calculation_1501669056580341768] < 30 THEN 3
+    ELSEIF [Calculation_1501669056580341768] < 60 THEN 4
+    ELSEIF [Calculation_1501669056580341768] < 120 THEN 5
+    ELSE 6 END
